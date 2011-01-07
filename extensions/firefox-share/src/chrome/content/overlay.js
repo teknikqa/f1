@@ -437,8 +437,8 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
 
       if (usepopup) {
         var popup = document.getElementById("share-popup");
-        var position = (getComputedStyle(gNavToolbox, "").direction === "rtl") ? 'bottomcenter topright' : 'bottomcenter topleft';
-        var button = document.getElementById("ffshare-toolbar-button");
+        var button = document.getElementById("ffshare-url-button");
+        var position = (getComputedStyle(button, "").direction === "rtl") ? 'bottomcenter topright' : 'bottomcenter topleft';
         popup.openPopup(button, position);
         iframeNode = this.createShareFrame(options);
       } else {

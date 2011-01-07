@@ -117,6 +117,14 @@
            width="16"
            height="16"
            style="margin-left: 3px;visibility: collapse;"/>
+    <image insertbefore="star-button"
+           id="ffshare-url-button"
+           src="chrome://ffshare/skin/share-icon-16x16.png"
+           class="urlbar-icon"
+           onclick="ffshare.onOpenShareCommand(this);"
+           width="16"
+           height="16"
+           style="margin-left: 3px;"/>
   </hbox>
 
   <toolbarpalette id="BrowserToolbarPalette">
