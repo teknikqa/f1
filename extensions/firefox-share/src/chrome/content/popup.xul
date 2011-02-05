@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!DOCTYPE dialog PUBLIC "-//MOZILLA//DTD XUL V1.0//EN" "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<?xml-stylesheet href="chrome://global/skin/global.css" type="text/css"?>
+
+<dialog id="f1-popup"
+        width="400px"
+        height="280px"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<script  type="application/javascript">
+window.addEventListener('load', function(e) {
+    
+try {
+dump("window.arguments "+window.arguments+"\n");
+var options = window.arguments[0];
+var ffshare = window.arguments[1];
+dump("options "+options+"\n");
+dump("ffshare "+ffshare+"\n");
+var url = ffshare.prefs.share_url +
+          '#options=' + encodeURIComponent(JSON.stringify(options));
+dump("set url to "+url+"\n");
+document.getElementById('f1browser').setAttribute('src', url);
+} catch(e) {
+    dump(e+"\n");
+}
+
+}, false);
+</script>
+    <browser id="f1browser" flex="1" style="border: 1px solid red"/>
+</dialog>

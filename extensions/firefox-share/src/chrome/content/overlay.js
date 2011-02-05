@@ -532,7 +532,8 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
     },
 
     hide: function () {
-      this.panel.hidePopup();
+      this.panel.close();
+      //this.panel.hidePopup();
       this.visible = false;
       // Always ensure the button is unchecked when the panel is hidden
       getButton().removeAttribute("checked");
@@ -546,15 +547,9 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
       this.panel = null;
       this.tab.ffshareTabFrame = null;
     },
-
-    createShareFrame: function (options) {
+    
+    getOptions: function(options) {
       options = options || this.options || {};
-
-      var browser = gBrowser.getBrowserForTab(this.tab), url,
-          notificationBox = gBrowser.getNotificationBox(browser),
-          panel = document.createElement('panel'),
-          browserNode = document.createElement('browser');
-
       mixin(options, {
         version: ffshare.version,
         title: this.getPageTitle(),
@@ -572,6 +567,23 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
         }
       });
       this.options = options;
+    },
+
+    createShareFrame: function (options) {
+      alert('createShareFrame called');
+      try {
+      var panel, browserNode;
+      this.getOptions(options);
+      if (options['dialog']) {
+        panel = options['dialog'];
+        alert("panel "+panel.getAttribute('id'));
+        browserNode = panel.createElement('browser');
+      } else {
+        panel = document.createElement('panel');
+        browserNode = document.createElement('browser');
+      }
+      var browser = gBrowser.getBrowserForTab(this.tab), url,
+          notificationBox = gBrowser.getNotificationBox(browser);
 
       this.panel = panel;
 
@@ -615,7 +627,7 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
       });
 
       panel.appendChild(browserNode);
-      document.getElementById('mainPopupSet').appendChild(panel);
+      //document.getElementById('mainPopupSet').appendChild(panel);
 
       // hookup esc to also close the panel
       panel.addEventListener('keypress', fn.bind(this, function (e) {
@@ -643,6 +655,9 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
       this.registerListener();
 
       browserNode.setAttribute('src', url);
+      } catch(e) {
+        alert(e);
+      }
     },
 
     sizeToContent: function () {
@@ -669,6 +684,7 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
     },
 
     show: function (options) {
+      try {
       var tabURI = gBrowser.getBrowserForTab(this.tab).currentURI,
           tabUrl = tabURI.spec;
 
@@ -677,7 +693,12 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
       }
 
       if (!this.panel) {
-        this.createShareFrame(options);
+        this.getOptions(options);
+        var d = window.openDialog('chrome://ffshare/content/popup.xul', 'f1-popup','modal=no',this.options,ffshare);
+        //d.addEventListener("load", fn.bind(this, function(e) {
+        //  this.panel = d.document.documentElement;
+        //}), false);
+        //this.createShareFrame(options);
       }
 
       var button = getButton();
@@ -686,7 +707,11 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
 
       // Always ensure we aren't glowing if the person clicks on the button
       button.removeAttribute("firstRun");
-
+this.visible = true;
+      } catch(e) {
+        alert(e);
+      }
+return;
       // fx 4
       if (majorVer >= 4) {
         var position = (getComputedStyle(gNavToolbox, "").direction === "rtl") ? 'bottomcenter topright' : 'bottomcenter topleft';
@@ -706,10 +731,10 @@ var FFSHARE_EXT_ID = "ffshare@mozilla.org";
         }
         if (first === button) {
           this.panel.setAttribute('class', 'ffshare-panel doorhanger-rtl');
-          this.panel.showPopup(button, -1, -1, 'popup', 'bottomleft', 'topleft');
+          //this.panel.showPopup(button, -1, -1, 'popup', 'bottomleft', 'topleft');
         } else {
           this.panel.setAttribute('class', 'ffshare-panel doorhanger-ltr');
-          this.panel.showPopup(button, -1, -1, 'popup', 'bottomright', 'topright');
+          //this.panel.showPopup(button, -1, -1, 'popup', 'bottomright', 'topright');
         }
       }
 
