@@ -39,3 +39,7 @@
 .autocomplete-richlistitem[type="ffshare"] .ac-url-box {
     display: none !important;
 }
+
+.ffshare-panel .panel-inner-arrowcontent {
+    padding: 0;
+}
