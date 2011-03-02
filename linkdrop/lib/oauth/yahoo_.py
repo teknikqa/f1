@@ -223,9 +223,46 @@ class api():
         c.title = title
         c.description = description
         c.message = message
-        c.thumbnail = False
+        c.thumbnail = (options.get('picture_base64', "") != "")
 
         html_message = render('/html_email.mako').encode('utf-8')
+
+        if c.thumbnail:
+
+            html_message_part = {
+                "data" : html_message,
+                "type" : "text",
+                "subtype" : "html",
+                "encoding" : "7bit",
+                "charset" : "utf-8",
+            }
+
+            image_part = {
+                "data" : options.get('picture_base64'),
+                "type" : "image",
+                "subtype" : "png",
+                "encoding" : "base64",
+                "filename" : "thumbnail.png",
+                "charset" : "utf-8",
+                "contendid" : "<thumbnail>",
+                "disposition" : "inline"
+            }
+
+            html_part = {
+                "type" : "multipart",
+                "subtype" : "mixed",
+                "subparts" : [ html_message_part, image_part ],
+                "charset" : "utf-8",
+            }
+
+        else:
+            html_part = {
+                "data" : html_message,
+                "type" : "text",
+                "subtype" : "html",
+                "encoding" : "7bit",
+                "charset" : "utf-8",
+            }
 
         # get the title, or the long url or the short url or nothing
         # wrap these in literal for text email
@@ -239,15 +276,29 @@ class api():
 
         text_message = render('/text_email.mako').encode('utf-8')
 
+        text_part = {
+            "data" : text_message,
+            "type" : "text",
+            "subtype" : "plain",
+            "encoding" : "7bit",
+            "charset" : "utf-8",
+        }
+
+        multi_part = {
+            "type" : "multipart",
+            "subtype" : "alternative",
+            "subparts" : [ text_part, html_part ],
+            "charset" : "utf-8",
+        }
+
+        log.info(json.dumps(multi_part, indent=2))
+
         params = [{
                 "message":
                     {"subject":subject,
                      "from":{"name": fullname, "email":from_},
                      "to":to_,
-                     "simplebody":{
-                        "text": text_message,
-                        "html": html_message
-                     }
+                     "body" : multi_part,
                     },
                  "savecopy":1
                 }]
