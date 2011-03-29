@@ -24,6 +24,7 @@
 import logging
 import urllib, cgi, json, sys
 from urlparse import urlparse
+import copy
 
 from pylons import config, request, response, tmpl_context as c, url
 from pylons.controllers.util import abort, redirect
@@ -37,6 +38,8 @@ from linkdrop.lib.base import BaseController, render
 from linkdrop.lib.helpers import json_exception_response, api_response, api_entry, api_arg
 from linkdrop.lib import constants
 from linkdrop.lib.metrics import metrics
+
+from linkdrop.lib.queue import get_queue_dispatcher
 
 log = logging.getLogger(__name__)
 
@@ -88,48 +91,32 @@ Name of the group to return.
         response={'type': 'object', 'doc': 'Portable Contacts Collection'}
     )
     def get(self, domain):
-        username = request.POST.get('username')
-        userid = request.POST.get('userid')
-        group = request.POST.get('group', None)
-        startIndex = int(request.POST.get('startindex','0'))
-        maxResults = int(request.POST.get('maxresults','25'))
-        account_data = request.POST.get('account', None)
-        provider = get_provider(domain)
-        if provider is None:
-            error = {
-                'message': "'domain' is invalid",
-                'code': constants.INVALID_PARAMS
-            }
-            return {'result': None, 'error': error}
+        # requried post data: domain, ...
+        required = []
+        for key in required:
+            if request.POST.get(key, None) is None:
+                error = {
+                    'message': "required argument '%s' is not optional" % key,
+                    'code': constants.INVALID_PARAMS }
+                return {'result': None, 'error': error}
 
+        # validate, somewhat, the account data
         acct = None
+        account_data = request.POST.get('account', None)
         if account_data:
             acct = json.loads(account_data)
         if not acct:
-            metrics.track(request, 'contacts-noaccount', domain=domain)
-            error = {'provider': domain,
+            error = {'provider': request.POST.get('domain'),
                      'message': "not logged in or no user account for that domain",
-                     'status': 401
-            }
+                     'status': 401 }
             return {'result': None, 'error': error}
 
-        try:
-            result, error = provider.api(acct).getcontacts(startIndex, maxResults, group)
-        except OAuthKeysException, e:
-            # more than likely we're missing oauth tokens for some reason.
-            error = {'provider': domain,
-                     'message': "not logged in or no user account for that domain",
-                     'status': 401
-            }
-            result = None
-            metrics.track(request, 'contacts-oauth-keys-missing', domain=domain)
-        except ServiceUnavailableException, e:
-            error = {'provider': domain,
-                     'message': "The service is temporarily unavailable - please try again later.",
-                     'status': 503
-            }
-            if e.debug_message:
-                error['debug_message'] = e.debug_message
-            result = None
-            metrics.track(request, 'contacts-service-unavailable', domain=domain)
+        data = copy.copy(request.POST)
+        data['domain'] = domain
+
+        queue = get_queue_dispatcher()
+        result, error = queue.process('contacts', data)
+        if error and error['status'] == 202:
+            result, error = queue.retreive(error['id'])
+
         return {'result': result, 'error': error}

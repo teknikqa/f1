@@ -36,14 +36,12 @@ from pylons import config, request, response
 from pylons.controllers.util import abort, redirect
 from pylons.decorators.util import get_pylons
 
-from linkoauth import get_provider
-from linkoauth.base import OAuthKeysException, ServiceUnavailableException
-
 from linkdrop.lib.base import BaseController
 from linkdrop.lib.helpers import json_exception_response, api_response, api_entry, api_arg
 from linkdrop.lib import constants
 from linkdrop.lib.metrics import metrics
-from linkdrop.lib.shortener import shorten_link
+
+from linkdrop.lib.queue import get_queue_dispatcher
 
 log = logging.getLogger(__name__)
 
@@ -111,92 +109,32 @@ Site provided description of the shared item, not supported by all services.
         response={'type': 'list', 'doc': 'raw data list'}
     )
     def send(self):
-        result = {}
-        error = None
-        acct = None
-        domain = request.POST.get('domain')
-        message = request.POST.get('message', '')
-        username = request.POST.get('username')
-        longurl = request.POST.get('link')
-        shorten = asbool(request.POST.get('shorten', 0))
-        shorturl = request.POST.get('shorturl')
-        userid = request.POST.get('userid')
-        to = request.POST.get('to')
-        account_data = request.POST.get('account', None)
-        if not domain:
-            error = {
-                'message': "'domain' is not optional",
-                'code': constants.INVALID_PARAMS
-            }
-            return {'result': result, 'error': error}
-        provider = get_provider(domain)
-        if provider is None:
-            error = {
-                'message': "'domain' is invalid",
-                'code': constants.INVALID_PARAMS
-            }
-            return {'result': result, 'error': error}
+        # requried post data: domain, message, username or userid, link, account        
+        required = ['domain']
+        for key in required:
+            if request.POST.get(key, None) is None:
+                error = {
+                    'message': "required argument '%s' is not optional" % key,
+                    'code': constants.INVALID_PARAMS }
+                return {'result': None, 'error': error}
 
+        # validate, somewhat, the account data
+        acct = None
+        account_data = request.POST.get('account', None)
         if account_data:
             acct = json.loads(account_data)
         if not acct:
-            metrics.track(request, 'send-noaccount', domain=domain)
-            error = {'provider': domain,
+            error = {'provider': request.POST.get('domain'),
                      'message': "not logged in or no user account for that domain",
-                     'status': 401
-            }
-            return {'result': result, 'error': error}
+                     'status': 401 }
+            return {'result': None, 'error': error}
 
-        args = copy.copy(request.POST)
-        if shorten and not shorturl and longurl:
-            link_timer = metrics.start_timer(request, long_url=longurl)
-            u = urlparse(longurl)
-            if not u.scheme:
-                longurl = 'http://' + longurl
-            shorturl = shorten_link(longurl)
-            link_timer.track('link-shorten', short_url=shorturl)
-            args['shorturl'] = shorturl
+        data = copy.copy(request.POST)
 
-        acct_hash = hashlib.sha1("%s#%s" % ((username or '').encode('utf-8'), (userid or '').encode('utf-8'))).hexdigest()
-        timer = metrics.start_timer(request, domain=domain, message_len=len(message),
-                                    long_url=longurl, short_url=shorturl, acct_id=acct_hash)
-        # send the item.
-        try:
-            result, error = provider.api(acct).sendmessage(message, args)
-        except OAuthKeysException, e:
-            # XXX - I doubt we really want a full exception logged here?
-            #log.exception('error providing item to %s: %s', domain, e)
-            # XXX we need to handle this better, but if for some reason the
-            # oauth values are bad we will get a ValueError raised
-            error = {'provider': domain,
-                     'message': "not logged in or no user account for that domain",
-                     'status': 401
-            }
+        queue = get_queue_dispatcher()
+        result, error = queue.process('send', data)
+        if error and error['status'] == 202:
+            result, error = queue.retreive(error['id'])
 
-            metrics.track(request, 'send-oauth-keys-missing', domain=domain)
-            timer.track('send-error', error=error)
-            return {'result': result, 'error': error}
-        except ServiceUnavailableException, e:
-            error = {'provider': domain,
-                     'message': "The service is temporarily unavailable - please try again later.",
-                     'status': 503
-            }
-            if e.debug_message:
-                error['debug_message'] = e.debug_message
-            metrics.track(request, 'send-service-unavailable', domain=domain)
-            timer.track('send-error', error=error)
-            return {'result': result, 'error': error}
-
-        if error:
-            timer.track('send-error', error=error)
-            assert not result
-            #log.error("send failure: %r %r %r", username, userid, error)
-        else:
-            # create a new record in the history table.
-            assert result
-            result['shorturl'] = shorturl
-            result['from'] = userid
-            result['to'] = to
-            timer.track('send-success')
-        # no redirects requests, just return the response.
         return {'result': result, 'error': error}
+
