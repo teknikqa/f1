@@ -14,7 +14,6 @@ PYLINT = bin/pylint
 PKGS = linkdrop
 
 version := 0.3.2
-#PYTHON := python
 
 ifeq ($(TOPSRCDIR),)
   export TOPSRCDIR = $(shell pwd)
